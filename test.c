@@ -6,14 +6,7 @@
 
 int main(void)
 {
-    int i=1;
-    while(1) {
-        i--;
-        if(i == -1) {
-            printf("ah");
-            exit(0);
-        }
-        printf("%d\n", i);
-    }
+    
+        printf("/%d.jpg", 3);
     return 0;
 }

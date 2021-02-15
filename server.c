@@ -16,8 +16,9 @@
 #include <signal.h>
 
 #define PORT "3490"  // the port users will be connecting to
-
+#define BUFSIZE 512
 #define BACKLOG 10	 // how many pending connections queue will hold
+//#define _POSIX_C_SOURCE
 
 void sigchld_handler(int s)
 {
@@ -124,9 +125,21 @@ int main(void)
 		printf("server: got connection from %s\n", s);
 
 		if (!fork()) { // this is the child process
+			char p_array[BUFSIZE];
+			FILE *image = fopen("s1.png", "w");
+			int nb;
 			close(sockfd); // child doesn't need the listener
-			if (send(new_fd, "Hello, world!", 13, 0) == -1)
-				perror("send");
+
+			nb = recv(new_fd, p_array, BUFSIZE, 0);
+			
+			printf("%d\n", nb);
+			while (nb > 0) {
+
+				fwrite(p_array, 1, nb, image);
+				nb = recv(new_fd, p_array, BUFSIZE, 0);
+			}
+			fwrite(p_array, 1, nb, image);
+			fclose(image);
 			close(new_fd); // closing the connection
 			exit(0); //terminating the child process
 
