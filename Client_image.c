@@ -11,7 +11,9 @@
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
-
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <sys/sendfile.h>
 
 
 #include <arpa/inet.h>
@@ -32,31 +34,59 @@ void* get_in_addr(struct sockaddr *sa)
 }
 
 void send_image(int sockfd){
-    /**
-	int length = snprintf(NULL, 0, "/%d.png", picturenth);
-	char* pic_num = malloc( length + 1 );
-	snprintf(pic_num, length + 1, "/%d.jpg", picturenth);
-	char* pic_add = malloc(strlen(cwd)+10);
-	strcpy(pic_add, cwd);
-    strcat(pic_add, pic_num);
-    **/
+    int fd;
+	struct stat file_stat;
+	char file_size[256];
+	int len, numbytes;
+	int sent_bytes = 0;
+	
     char* pic_add = "c1.png";
-
-	FILE *picture;
-	picture = fopen(pic_add, "r");
-	//int size;
-	//fseek(picture, 0, SEEK_END);
-	//size = ftell(picture);
-	int nb = fread(buf, 1, sizeof(buf), picture);
-    printf("%d\n", nb);
-	while(!feof(picture)){
-		send(sockfd, buf, nb, 0);
-		nb = fread(buf, 1, sizeof(buf), picture);
-        printf("%d\n", nb);
+	fd = open(pic_add, O_RDONLY);
+	if (fd == -1){
+		fprintf(stderr, "Error openning file --> %s\n", strerror(errno));
+		exit(EXIT_FAILURE);
 	}
-    send(sockfd, buf, nb, 0);
-	//free(pic_num);
-	//free(pic_add);
+	if (fstat(fd, &file_stat) < 0){
+		fprintf(stderr, "Error fstat --> %s\n", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+
+	fprintf(stdout, "File Size: \n%ld bytes\n", file_stat.st_size);
+	sprintf(file_size, "%ld", file_stat.st_size);
+	socklen_t sock_len = sizeof(struct sockaddr_in);
+
+	if (len = send(sockfd, file_size, sizeof(file_size), 0) < 0){
+		fprintf(stderr, "Error on sending greetings(file size) --> %s", strerror(errno));
+        exit(EXIT_FAILURE);
+	}
+	while (len == 0){
+		len = send(sockfd, file_size, sizeof(file_size), 0);
+	}
+	
+
+	fprintf(stdout, "Client sent %d bytes for the size\n", len);
+	off_t offset =0;
+	int remain_data = file_stat.st_size;
+
+	while (((sent_bytes = sendfile(sockfd, fd, &offset, MAXDATASIZE)) > 0) && (remain_data > 0)){
+        //fprintf(stdout, "1. Server sent %d bytes from file's data, offset is now : %ld and remaining data = %d\n", sent_bytes, offset, remain_data);
+        remain_data -= sent_bytes;
+        fprintf(stdout, "2. Client sent %d bytes from file's data, offset is now : %ld and remaining data = %d\n", sent_bytes, offset, remain_data);
+    }
+
+	if ((numbytes = recv(sockfd, buf, MAXDATASIZE-1, 0)) == -1) {
+        perror("recv");
+        exit(1);
+		bzero(buf,MAXDATASIZE-1);
+    }
+	while (numbytes == 0){
+		numbytes = recv(sockfd, buf, MAXDATASIZE-1, 0);
+		bzero(buf,MAXDATASIZE-1);
+	}
+	buf[numbytes] = '\0';
+
+	printf("client: received '%s'\n",buf);
+	
 }
 
 int main(int argc, char *argv[])

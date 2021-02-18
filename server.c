@@ -16,7 +16,7 @@
 #include <signal.h>
 
 #define PORT "3490"  // the port users will be connecting to
-#define BUFSIZE 512
+#define BUFFSIZE 512
 #define BACKLOG 10	 // how many pending connections queue will hold
 //#define _POSIX_C_SOURCE
 
@@ -52,7 +52,7 @@ int main(void)
 	struct sigaction sa;
 	int yes=1;
 	char s[INET6_ADDRSTRLEN];
-	int rv;
+	int rv, len;
 
 	memset(&hints, 0, sizeof hints); // make sure the struct is empty
 	hints.ai_family = AF_UNSPEC; // don't care IPv4 or IPv6
@@ -125,21 +125,39 @@ int main(void)
 		printf("server: got connection from %s\n", s);
 
 		if (!fork()) { // this is the child process
-			char p_array[BUFSIZE];
+			char p_array[BUFFSIZE];
 			FILE *image = fopen("s1.png", "w");
+			if (image == NULL){
+				fprintf(stderr, "Failed to open file foo --> %s\n", strerror(errno));
+                exit(EXIT_FAILURE);	
+			}
 			int nb;
 			close(sockfd); // child doesn't need the listener
 
-			nb = recv(new_fd, p_array, BUFSIZE, 0);
-			
-			printf("%d\n", nb);
-			while (nb > 0) {
-
-				fwrite(p_array, 1, nb, image);
-				nb = recv(new_fd, p_array, BUFSIZE, 0);
+			recv(new_fd, p_array, BUFFSIZE, 0);
+			int file_size = atoi(p_array);
+			int remain_data = file_size;
+			printf("File size is %d bytes\n", remain_data);
+			//printf("%d\n", nb);
+			bzero(p_array,BUFFSIZE);
+			while ((remain_data > 0) && ((nb = recv(new_fd, p_array, BUFFSIZE, 0)) > 0)) {
+				fwrite(p_array, sizeof(char), nb, image);
+				remain_data -= nb;
+				fprintf(stdout, "Receive %d bytes and we hope :- %d bytes\n", nb, remain_data);
+				bzero(p_array,BUFFSIZE);
 			}
-			fwrite(p_array, 1, nb, image);
+			
 			fclose(image);
+
+			sleep(2);
+
+			if (len = send(new_fd, "Hello, world!", 13, 0) < 0){
+				fprintf(stderr, "Error on sending response --> %s", strerror(errno));
+        		exit(EXIT_FAILURE);
+			}
+			while (len == 0){
+				len = send(new_fd, "Hello, world!", 13, 0);
+			}
 			close(new_fd); // closing the connection
 			exit(0); //terminating the child process
 
