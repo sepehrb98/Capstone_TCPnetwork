@@ -17,7 +17,7 @@
 #include <fcntl.h>
 #include <sys/sendfile.h>
 
-#define PORT "3490"  // the port users will be connecting to
+#define PORT "3491"  // the port users will be connecting to
 #define BUFFSIZE 512
 #define BACKLOG 10	 // how many pending connections queue will hold
 //#define _POSIX_C_SOURCE
@@ -114,6 +114,7 @@ int main(void)
 
 	while(1) {  // main accept() loop
 		
+		
 		sin_size = sizeof their_addr;
 		new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size);
 		if (new_fd == -1) {
@@ -130,13 +131,19 @@ int main(void)
 			char p_array[256];
 			int recv_bytes;
 			char ending_char[256];
-			snprintf(ending_char, 256, "%d", 1);
+			snprintf( ending_char, 256, "%d", 1);
 
-			
+			/**
+			int recv_fd = open("s1.png", O_WRONLY | O_CREAT, 0666);
+			if (recv_fd == -1){
+				fprintf(stderr, "Error openning file --> %s\n", strerror(errno));
+				exit(EXIT_FAILURE);
+			}
+			**/
 			int nb;
 			close(sockfd); // child doesn't need the listener
 			while(1){
-				FILE *image = fopen("s1.png", "w");
+				FILE *image = fopen("s2.png", "w");
 				if (image == NULL){
 					fprintf(stderr, "Failed to open file foo --> %s\n", strerror(errno));
 					exit(EXIT_FAILURE);
@@ -157,8 +164,8 @@ int main(void)
 				
 				printf("File size is %d bytes\n", remain_data);
 				if (file_size == 1){
-					 // closing the connection
-					printf("server 1 received ending message: closing the connection\n");
+					// closing the connection
+					printf("server 2 received ending message: closing the connection\n");
 					break; //terminating the child process
 				}
 				//printf("%d\n", nb);
@@ -182,7 +189,7 @@ int main(void)
 				}
 			}
 			close(new_fd); // closing the connection
-			printf("server: waiting for connections...\n");
+			printf("server: waiting for new connections...\n");
 			exit(0); //terminating the child process
 
 		}

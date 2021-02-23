@@ -40,7 +40,7 @@ void send_image(int sockfd){
 	int len, numbytes;
 	int sent_bytes = 0;
 	
-    char* pic_add = "c1.png";
+    char* pic_add = "1.png";
 	fd = open(pic_add, O_RDONLY);
 	if (fd == -1){
 		fprintf(stderr, "Error openning file --> %s\n", strerror(errno));
@@ -96,9 +96,6 @@ int main(int argc, char *argv[])
 	struct addrinfo hints, *servinfo, *p;
 	int rv;
 	char s[INET6_ADDRSTRLEN];
-
-	if (getcwd(cwd, sizeof(cwd)) == NULL)
-		perror("getcwd() error");
 
 	if (argc != 2) {
 	    fprintf(stderr,"usage: client arguments\n");
