@@ -1,5 +1,5 @@
 /*
-** client.c -- a stream socket client demo
+** Client.c -- a stream socket Client demo
 */
 
 #include <stdio.h>
@@ -19,17 +19,40 @@
 #include <stdbool.h>
 
 
-//#define PORT "3490" // the port client will be connecting to 
-#define MAXDATASIZE 512 // max number of bytes we can get at once 
+//#define PORT "3490" // the port Client will be connecting to 
+#define MAXDATASIZE 2048 // max number of bytes we can get at once 
 
 struct arg_struct{
 	int socketfd;
 	int numOfPic;
 	bool th_end_flag;
 	int num_of_server;
+	int *output;
 };
 
+void saving_results(int *results, int numofpics){
+	FILE *txt = fopen("results.txt", "w");
+	if (txt==NULL){
+		printf("Client : Error opening results.txt file!\n");
+		exit(1);
+	}
+	for(int i=1; i < numofpics+1; i++){
+		if(results[i]==0){
+			fprintf(txt, "%d. Smile detected\n", i);
+		}
+		else if(results[i]==1){
+			fprintf(txt, "%d. No face detected\n", i);
+		}
+		else if(results[i]==2){
+			fprintf(txt, "%d. No smile detected\n", i);
+		}
+		else{
+			fprintf(txt, "%d. There has been a problem with this file\n", i);
+		}
+		
 
+	}
+}
 
 // get sockaddr, IPv4 or IPv6:
 void* get_in_addr(struct sockaddr *sa)
@@ -45,19 +68,19 @@ void* close_servers(void* arguments){
 	struct arg_struct *args = (struct arg_struct *)arguments;
 	int thsocketfd = args-> socketfd;
 	int len;
-	char ending_char[256];
+	char ending_char[1024];
 	off_t ending_size = 1;
 	sprintf(ending_char, "%ld", ending_size);	
 
 	if (len = send(thsocketfd, ending_char, sizeof(ending_char), 0) < 0){
-		fprintf(stderr, "Error on sending ending char --> %s\n", strerror(errno));
+		fprintf(stderr, "Client: Error on sending ending message --> %s\n", strerror(errno));
         exit(EXIT_FAILURE);
 	}
 	args->th_end_flag = true;
 }
 
-void *send_image(void* arguments){
-	char buf[MAXDATASIZE], file_size[256];
+void *send_video(void* arguments){
+	char buf[MAXDATASIZE], file_size[1024];
     int fd, len, numbytes, sent_bytes = 0;
 	struct stat file_stat;
 	int thsocketfd;
@@ -69,33 +92,33 @@ void *send_image(void* arguments){
 	len = snprintf(NULL, 0, "%d", args -> numOfPic);
     char* pic_add = malloc(len+5);
 	snprintf(pic_add, len+1, "%d", args -> numOfPic);
-	strcat(pic_add, ".png");
+	strcat(pic_add, ".mp4");
 	pic_add[len+5] = '\0';
 	
 	
-	printf("sending %s for server %d\n", pic_add, args->num_of_server);
+	printf("Client: sending %s for server %d\n", pic_add, args->num_of_server);
 	fd = open(pic_add, O_RDONLY);
 	if (fd == -1){
-		fprintf(stderr, "Error openning file --> %s\n", strerror(errno));
+		fprintf(stderr, "Client: Error openning file --> %s\n", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
 	if (stat(pic_add, &file_stat) < 0){
-		fprintf(stderr, "Error stat --> %s\n", strerror(errno));
+		fprintf(stderr, "Client: Error stat --> %s\n", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
 	
 
-	fprintf(stdout, "File Size: %ld bytes\n", file_stat.st_size);
+	fprintf(stdout, "Client: File Size: %ld bytes\n", file_stat.st_size);
 	sprintf(file_size, "%ld", file_stat.st_size);
 	socklen_t sock_len = sizeof(struct sockaddr_in);
 
 	
 	if (len = send(thsocketfd, file_size, sizeof(file_size), 0) < 0){
-		fprintf(stderr, "Error on sending greetings(file size) --> %s\n", strerror(errno));
+		fprintf(stderr, "Client: Error on sending greetings(file size) --> %s\n", strerror(errno));
         exit(EXIT_FAILURE);
 	}
 	
-	//fprintf(stdout, "client: sent %d bytes for the size\n", len);
+	//fprintf(stdout, "Client: sent %d bytes for the size\n", len);
 	off_t offset =0;
 	int remain_data = file_stat.st_size;
 	
@@ -106,7 +129,7 @@ void *send_image(void* arguments){
     }
 
 	if (remain_data == 0)
-		printf("client: sent the image successfully\n");
+		printf("Client: sent the video number %d successfully\n", args -> numOfPic);
 
 	if ((numbytes = recv(thsocketfd, buf, MAXDATASIZE, 0)) == -1) {
         perror("recv");
@@ -119,9 +142,11 @@ void *send_image(void* arguments){
 	}
 	buf[numbytes] = '\0';
 
-	printf("client: received '%s' from server %d for %s\n",buf, args->num_of_server, pic_add);
-
-
+	printf("Client: received code '%s' from server %d for %s\n", buf, args->num_of_server, pic_add);
+	int code;
+	sscanf(buf, "%d", &code);
+	args->output[args->numOfPic - 1] =  code;
+	
 	args->th_end_flag = true;
 	free(pic_add);
 	
@@ -140,7 +165,7 @@ int create_socket(char* ip_add, char* port)
 	hints.ai_socktype = SOCK_STREAM;
 
 	if ((rv = getaddrinfo(ip_add, port, &hints, &servinfo)) != 0) {
-		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+		fprintf(stderr, "Client: getaddrinfo: %s\n", gai_strerror(rv));
 		return 1;
 	}
 
@@ -148,12 +173,12 @@ int create_socket(char* ip_add, char* port)
 	for(p = servinfo; p != NULL; p = p->ai_next) {
 		if ((sockfd = socket(p->ai_family, p->ai_socktype,
 				p->ai_protocol)) == -1) {
-			perror("client: socket");
+			perror("Client: socket");
 			continue;
 		}
 
 		if (connect(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
-			perror("client: connect");
+			perror("Client: connect");
 			close(sockfd);
 			continue;
 		}
@@ -162,13 +187,13 @@ int create_socket(char* ip_add, char* port)
 	}
 
 	if (p == NULL) {
-		fprintf(stderr, "client: failed to connect\n");
+		fprintf(stderr, "Client: failed to connect\n");
 		return 2;
 	}
 
 	inet_ntop(p->ai_family, get_in_addr((struct sockaddr *)p->ai_addr),
 			s, sizeof s);
-	printf("client: connecting to %s on port %s\n", s, port);
+	printf("Client: connecting to %s on port %s\n", s, port);
 
 	freeaddrinfo(servinfo);// all done with this structure
 
@@ -183,12 +208,16 @@ int main(int argc, char *argv[])
 	struct arg_struct args2;
 
 	if (argc != 4) {
-			fprintf(stderr,"usage: client arguments\n");
+			fprintf(stderr,"usage: Client arguments\n");
 			exit(1);
 		}
 
+	
+	
+
 	int picNum;
 	sscanf(argv[1], "%d", &picNum); //converting input number to an integer
+	int *result_codes = malloc(picNum);
 
 	int sockfd1 = create_socket(argv[2], "3490");
 	int sockfd2 = create_socket(argv[3], "3491");
@@ -199,23 +228,24 @@ int main(int argc, char *argv[])
 	args2.num_of_server = 2;
 	args1.numOfPic = 1; //first image for first server
 	args2.numOfPic = 2; //first image for second server
+	args1.output, args2.output = result_codes;
 
 	int i = 3;
 
 	args1.th_end_flag = false;
 	int err;
-	err = pthread_create(&th1, NULL, &send_image, (void*)&args1);
+	err = pthread_create(&th1, NULL, &send_video, (void*)&args1);
 	if (err)
     {
-        printf("An error occured: %d", err);
+        printf("Client: An error occured during creating s1 thread: %d", err);
         return 1;
     }
 
 	args2.th_end_flag = false;
-	err = pthread_create(&th2, NULL, &send_image, (void*)&args2);
+	err = pthread_create(&th2, NULL, &send_video, (void*)&args2);
 	if (err)
     {
-        printf("An error occured: %d", err);
+        printf("Client: An error occured during creating s2 thread: %d", err);
         return 1;
     }
 	
@@ -225,7 +255,12 @@ int main(int argc, char *argv[])
 			pthread_join(th1, NULL);
 			args1.numOfPic = i;
 			args1.th_end_flag = false;
-			pthread_create(&th1, NULL, &send_image, (void*)&args1);
+			err = pthread_create(&th1, NULL, &send_video, (void*)&args1);
+			if (err)
+    		{
+       			printf("Client: An error occured during creating s1 thread: %d", err);
+       			return 1;
+    		}
 			i++;
 			continue;
 		}
@@ -233,7 +268,12 @@ int main(int argc, char *argv[])
 			pthread_join(th2, NULL);
 			args2.numOfPic = i;
 			args2.th_end_flag = false;
-			pthread_create(&th2, NULL, &send_image, (void*)&args2);
+			err = pthread_create(&th2, NULL, &send_video, (void*)&args2);
+			if (err)
+    		{
+       			printf("Client: An error occured during creating s2 thread: %d", err);
+       			return 1;
+    		}
 			i++;
 			continue;
 		}
@@ -255,7 +295,9 @@ int main(int argc, char *argv[])
 	close(sockfd1);
 	close(sockfd2);
 
-	printf("sockets closed and ending message sent to servers\n");
+	saving_results(result_codes, picNum);
+
+	printf("Client: sockets closed and ending message sent to servers\n");
 	return 0;
 }
 

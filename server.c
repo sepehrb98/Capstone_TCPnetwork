@@ -18,9 +18,14 @@
 #include <sys/sendfile.h>
 
 #define PORT "3490"  // the port users will be connecting to
-#define BUFFSIZE 512
+#define BUFFSIZE 256
 #define BACKLOG 10	 // how many pending connections queue will hold
 //#define _POSIX_C_SOURCE
+
+int callScript(void){
+	char *cmd = "/home/sepehr/miniconda3/envs/3.7venv/bin/python3.7 /home/sepehr/SeFar/Capstone_NN/smile/smile_detector.py \"/home/sepehr/SeFar/Capstone_Network/s1.mp4\"";
+    return WEXITSTATUS(system(cmd));
+}
 
 void sigchld_handler(int s)
 {
@@ -55,11 +60,12 @@ int main(void)
 	int yes=1;
 	char s[INET6_ADDRSTRLEN];
 	int rv, len;
-
+	
 	memset(&hints, 0, sizeof hints); // make sure the struct is empty
 	hints.ai_family = AF_UNSPEC; // don't care IPv4 or IPv6
 	hints.ai_socktype = SOCK_STREAM; // TCP stream sockets
 	hints.ai_flags = AI_PASSIVE; // use my IP
+	
 
 	if ((rv = getaddrinfo(NULL, PORT, &hints, &servinfo)) != 0) {
 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
@@ -110,6 +116,7 @@ int main(void)
 		exit(1);
 	}
 
+	printf("server: waiting for connections...\n");
 	
 
 	while(1) {  // main accept() loop
@@ -127,28 +134,27 @@ int main(void)
 		printf("server: got connection from %s\n", s);
 
 		if (!fork()) { // this is the child process
-			char p_array[256];
+			char p_array[BUFFSIZE];
 			int recv_bytes;
-			char ending_char[256];
-			snprintf(ending_char, 256, "%d", 1);
-
+			char ending_char[BUFFSIZE];
+			snprintf(ending_char, BUFFSIZE, "%d", 1);
 			
 			int nb;
 			close(sockfd); // child doesn't need the listener
 			while(1){
-				FILE *image = fopen("s1.png", "w");
+				FILE *image = fopen("s1.mp4", "w");
 				if (image == NULL){
-					fprintf(stderr, "Failed to open file foo --> %s\n", strerror(errno));
+					fprintf(stderr, "Failed to open file s1.mp4 --> %s\n", strerror(errno));
 					exit(EXIT_FAILURE);
 				}
-				if ((nb = recv(new_fd, p_array, 256, 0)) == -1){
+				if ((nb = recv(new_fd, p_array, BUFFSIZE, 0)) == -1){
 					perror("recv");
 					exit(1);
-					bzero(p_array,256);
+					bzero(p_array,BUFFSIZE);
 				}
 				while (nb == 0){
-					nb = recv(new_fd, p_array, 256, 0);
-					bzero(p_array,256);
+					nb = recv(new_fd, p_array, BUFFSIZE, 0);
+					bzero(p_array,BUFFSIZE);
 				}
 				
 				int file_size = atoi(p_array);
@@ -162,24 +168,27 @@ int main(void)
 					break; //terminating the child process
 				}
 				//printf("%d\n", nb);
-				bzero(p_array,256);
+				bzero(p_array,BUFFSIZE);
 				
-				while ((remain_data > 0) && ((nb = recv(new_fd, p_array, 256, 0)) > 0)) {
+				while ((remain_data > 0) && ((nb = recv(new_fd, p_array, BUFFSIZE, 0)) > 0)) {
 					fwrite(p_array, sizeof(char), nb, image);
 					remain_data -= nb;
 					fprintf(stdout, "Receive %d bytes and we hope :- %d bytes\n", nb, remain_data);
-					bzero(p_array,256);
+					bzero(p_array,BUFFSIZE);
 				}
 				
-			
 				fclose(image);
+				int code = callScript();
+				len = snprintf(NULL, 0, "%d", code);
+    			char* retStatus = malloc(len+1);
+				snprintf(retStatus, len+1, "%d", code);
 
-				sleep(2);
 
-				if (len = send(new_fd, "Hello, world!", 13, 0) < 0){
+				if (len = send(new_fd, retStatus, len, 0) < 0){
 					fprintf(stderr, "Error on sending response --> %s\n", strerror(errno));
 					exit(EXIT_FAILURE);
 				}
+				free(retStatus);
 			}
 			close(new_fd); // closing the connection
 			printf("server: waiting for connections...\n");
@@ -190,7 +199,6 @@ int main(void)
 		close(new_fd);  // parent doesn't need this
 		
 	}
-
 	return 0;
 }
 
